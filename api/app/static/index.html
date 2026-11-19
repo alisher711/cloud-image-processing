@@ -1,0 +1,433 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Image Processing Service</title>
+<style>
+  :root {
+    --bg: #f4f6fb;
+    --card: #ffffff;
+    --text: #1d2433;
+    --muted: #6b7489;
+    --border: #e3e7f0;
+    --primary: #4f46e5;
+    --primary-dark: #4338ca;
+    --primary-soft: #eef0ff;
+    --queued: #b45309;     --queued-bg: #fef3c7;
+    --processing: #1d4ed8; --processing-bg: #dbeafe;
+    --completed: #15803d;  --completed-bg: #dcfce7;
+    --failed: #b91c1c;     --failed-bg: #fee2e2;
+    --radius: 14px;
+    --shadow: 0 1px 2px rgba(16,24,40,.05), 0 8px 24px rgba(16,24,40,.06);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1320;
+      --card: #181d2e;
+      --text: #e8ebf5;
+      --muted: #94a0ba;
+      --border: #2a3148;
+      --primary: #818cf8;
+      --primary-dark: #6366f1;
+      --primary-soft: #232a4a;
+      --queued: #fcd34d;     --queued-bg: #3b2f0f;
+      --processing: #93c5fd; --processing-bg: #172a4d;
+      --completed: #86efac;  --completed-bg: #12341f;
+      --failed: #fca5a5;     --failed-bg: #3d1717;
+      --shadow: none;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+  }
+  header {
+    background: linear-gradient(135deg, #4f46e5, #7c3aed);
+    color: #fff;
+    padding: 2.2rem 1rem 4.2rem;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 0 1rem; }
+  header h1 { margin: 0; font-size: 1.8rem; letter-spacing: -.01em; }
+  header p { margin: .35rem 0 0; opacity: .85; }
+  main { margin-top: -2.8rem; padding-bottom: 3rem; }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 1.4rem;
+    margin-bottom: 1.4rem;
+  }
+  .card h2 { margin: 0 0 1rem; font-size: 1.1rem; }
+
+  /* Upload */
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.4rem; }
+  @media (max-width: 720px) { .grid { grid-template-columns: 1fr; } }
+  .drop {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    text-align: center; gap: .4rem;
+    min-height: 220px;
+    border: 2px dashed var(--border);
+    border-radius: var(--radius);
+    background: var(--primary-soft);
+    cursor: pointer;
+    padding: 1rem;
+    transition: border-color .15s, background .15s;
+    overflow: hidden;
+  }
+  .drop:hover, .drop.over { border-color: var(--primary); }
+  .drop .icon { font-size: 2.2rem; }
+  .drop strong { color: var(--primary); }
+  .drop small { color: var(--muted); }
+  .drop img { max-width: 100%; max-height: 180px; border-radius: 8px; display: block; }
+  .drop .fname { font-size: .85rem; color: var(--muted); word-break: break-all; }
+  #file { display: none; }
+
+  label.field { display: block; font-size: .85rem; font-weight: 600; margin-bottom: .9rem; }
+  label.field span.hint { font-weight: 400; color: var(--muted); }
+  input[type=number], select {
+    display: block; width: 100%;
+    margin-top: .3rem;
+    padding: .6rem .75rem;
+    font: inherit; font-weight: 400;
+    color: var(--text);
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+  }
+  input[type=number]:focus, select:focus {
+    outline: 2px solid var(--primary); outline-offset: 1px; border-color: transparent;
+  }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: .8rem; }
+  .p[hidden] { display: none; }
+
+  button.primary {
+    width: 100%;
+    padding: .8rem 1rem;
+    font: inherit; font-weight: 600;
+    color: #fff;
+    background: var(--primary);
+    border: 0; border-radius: 10px;
+    cursor: pointer;
+    transition: background .15s, transform .05s;
+  }
+  button.primary:hover { background: var(--primary-dark); }
+  button.primary:active { transform: translateY(1px); }
+  button.primary:disabled { opacity: .6; cursor: wait; }
+  #msg { margin-top: .8rem; font-size: .9rem; min-height: 1.3em; }
+  #msg.ok { color: var(--completed); }
+  #msg.err { color: var(--failed); }
+  #msg.busy { color: var(--muted); }
+
+  /* Stats */
+  .stats { display: flex; flex-wrap: wrap; gap: .6rem; margin-bottom: 1rem; }
+  .stat {
+    flex: 1 1 110px;
+    padding: .6rem .8rem;
+    border-radius: 10px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+  }
+  .stat b { display: block; font-size: 1.35rem; line-height: 1.2; }
+  .stat span { font-size: .75rem; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+
+  /* Table */
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; min-width: 720px; }
+  th {
+    text-align: left; font-size: .72rem; text-transform: uppercase; letter-spacing: .05em;
+    color: var(--muted); font-weight: 600;
+    padding: .55rem .6rem; border-bottom: 1px solid var(--border);
+  }
+  td { padding: .65rem .6rem; border-bottom: 1px solid var(--border); font-size: .88rem; vertical-align: middle; }
+  tbody tr:last-child td { border-bottom: 0; }
+  tbody tr:hover { background: var(--primary-soft); }
+  .mono { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: .8rem; }
+  .muted { color: var(--muted); }
+  .badge {
+    display: inline-block; padding: .15rem .6rem; border-radius: 999px;
+    font-size: .75rem; font-weight: 600; text-transform: capitalize;
+  }
+  .badge.queued { color: var(--queued); background: var(--queued-bg); }
+  .badge.processing { color: var(--processing); background: var(--processing-bg); }
+  .badge.completed { color: var(--completed); background: var(--completed-bg); }
+  .badge.failed { color: var(--failed); background: var(--failed-bg); }
+  .badge.processing::before {
+    content: ""; display: inline-block; width: .6em; height: .6em; margin-right: .4em;
+    border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%;
+    animation: spin .8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .err-text { display: block; font-size: .75rem; color: var(--failed); margin-top: .2rem; max-width: 220px; }
+  a.dl {
+    display: inline-block; padding: .3rem .75rem; border-radius: 8px;
+    background: var(--primary); color: #fff; text-decoration: none;
+    font-size: .8rem; font-weight: 600;
+  }
+  a.dl:hover { background: var(--primary-dark); }
+  .empty { text-align: center; color: var(--muted); padding: 1.6rem 0; }
+  footer { text-align: center; color: var(--muted); font-size: .8rem; padding-bottom: 2rem; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <h1>Image Processing Service</h1>
+    <p>Upload an image, pick an operation, and let the workers do the rest.</p>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <section class="card">
+    <h2>New job</h2>
+    <form id="form" novalidate>
+      <div class="grid">
+        <div>
+          <label class="drop" id="drop" for="file">
+            <div id="dropContent">
+              <div class="icon">🖼️</div>
+              <div><strong>Click to choose</strong> or drag an image here</div>
+              <small>JPEG, PNG or WebP, max 10 MB</small>
+            </div>
+          </label>
+          <input type="file" id="file" accept="image/jpeg,image/png,image/webp">
+        </div>
+
+        <div>
+          <label class="field">Operation
+            <select id="operation">
+              <option value="resize">Resize</option>
+              <option value="compress">Compress</option>
+              <option value="convert">Convert format</option>
+              <option value="thumbnail">Thumbnail</option>
+            </select>
+          </label>
+
+          <div class="p" data-op="resize">
+            <div class="row">
+              <label class="field">Width <span class="hint">(px)</span>
+                <input type="number" id="width" value="800" min="1" max="8000">
+              </label>
+              <label class="field">Height <span class="hint">(px)</span>
+                <input type="number" id="height" value="600" min="1" max="8000">
+              </label>
+            </div>
+          </div>
+          <div class="p" data-op="compress">
+            <label class="field">Quality <span class="hint">(1–95, lower = smaller file)</span>
+              <input type="number" id="quality" value="50" min="1" max="95">
+            </label>
+          </div>
+          <div class="p" data-op="convert">
+            <label class="field">Target format
+              <select id="format"><option>webp</option><option>png</option><option>jpeg</option></select>
+            </label>
+          </div>
+          <div class="p" data-op="thumbnail">
+            <label class="field">Max size <span class="hint">(px, 16–1024)</span>
+              <input type="number" id="size" value="128" min="16" max="1024">
+            </label>
+          </div>
+
+          <button type="submit" class="primary" id="submitBtn">Submit job</button>
+          <div id="msg" role="status"></div>
+        </div>
+      </div>
+    </form>
+  </section>
+
+  <section class="card">
+    <h2>Recent jobs</h2>
+    <div class="stats">
+      <div class="stat"><b id="sQueued">0</b><span>Queued</span></div>
+      <div class="stat"><b id="sProcessing">0</b><span>Processing</span></div>
+      <div class="stat"><b id="sCompleted">0</b><span>Completed</span></div>
+      <div class="stat"><b id="sFailed">0</b><span>Failed</span></div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Job</th><th>File</th><th>Operation</th><th>Status</th><th>Worker</th><th>Tries</th><th>Result</th></tr>
+        </thead>
+        <tbody id="jobs"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer>Refreshes automatically every 2 seconds.</footer>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+const MAX_BYTES = 10 * 1024 * 1024;
+const ALLOWED = ['image/jpeg', 'image/png', 'image/webp'];
+
+/* ---------- operation parameter fields ---------- */
+function syncFields() {
+  const op = $('operation').value;
+  document.querySelectorAll('.p').forEach(d => { d.hidden = d.dataset.op !== op; });
+}
+$('operation').addEventListener('change', syncFields);
+syncFields();
+
+function buildParams(op) {
+  switch (op) {
+    case 'resize': return { width: +$('width').value, height: +$('height').value };
+    case 'compress': return { quality: +$('quality').value };
+    case 'convert': return { format: $('format').value };
+    case 'thumbnail': return { size: +$('size').value };
+  }
+}
+
+/* ---------- message line ---------- */
+function setMsg(text, kind) {
+  const m = $('msg');
+  m.textContent = text;
+  m.className = kind || '';
+}
+
+/* ---------- file chooser, preview, drag and drop ---------- */
+const drop = $('drop');
+let previewUrl = null;
+
+function showPreview(file) {
+  if (previewUrl) URL.revokeObjectURL(previewUrl);
+  const box = $('dropContent');
+  box.replaceChildren();
+  if (!file) {
+    box.innerHTML = '<div class="icon">🖼️</div>' +
+      '<div><strong>Click to choose</strong> or drag an image here</div>' +
+      '<small>JPEG, PNG or WebP, max 10 MB</small>';
+    return;
+  }
+  previewUrl = URL.createObjectURL(file);
+  const img = document.createElement('img');
+  img.src = previewUrl;
+  img.alt = 'Preview';
+  const name = document.createElement('div');
+  name.className = 'fname';
+  name.textContent = file.name + ' (' + (file.size / 1024 / 1024).toFixed(2) + ' MB)';
+  box.append(img, name);
+}
+
+$('file').addEventListener('change', () => showPreview($('file').files[0]));
+
+['dragenter', 'dragover'].forEach(ev =>
+  drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('over'); }));
+['dragleave', 'drop'].forEach(ev =>
+  drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('over'); }));
+drop.addEventListener('drop', e => {
+  if (e.dataTransfer.files.length) {
+    $('file').files = e.dataTransfer.files;
+    showPreview($('file').files[0]);
+  }
+});
+
+/* ---------- submit ---------- */
+$('form').addEventListener('submit', async e => {
+  e.preventDefault();
+  const file = $('file').files[0];
+  if (!file) { setMsg('Please choose an image first.', 'err'); return; }
+  if (!ALLOWED.includes(file.type)) { setMsg('Only JPEG, PNG or WebP images are allowed.', 'err'); return; }
+  if (file.size > MAX_BYTES) { setMsg('File is larger than 10 MB.', 'err'); return; }
+
+  const fd = new FormData();
+  fd.append('file', file);
+  fd.append('operation', $('operation').value);
+  fd.append('params', JSON.stringify(buildParams($('operation').value)));
+
+  const btn = $('submitBtn');
+  btn.disabled = true;
+  setMsg('Uploading...', 'busy');
+  try {
+    const r = await fetch('/jobs', { method: 'POST', body: fd });
+    const body = await r.json();
+    if (!r.ok) throw new Error(typeof body.detail === 'string' ? body.detail : JSON.stringify(body.detail));
+    setMsg('Job ' + body.job_id.slice(0, 8) + ' queued.', 'ok');
+    refresh();
+  } catch (err) {
+    setMsg('Error: ' + err.message, 'err');
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+/* ---------- jobs table ---------- */
+function cell(tr, text, cls) {
+  const td = document.createElement('td');
+  td.textContent = text;           // textContent: user-controlled names can't inject HTML
+  if (cls) td.className = cls;
+  tr.appendChild(td);
+  return td;
+}
+
+async function refresh() {
+  try {
+    const jobs = await (await fetch('/jobs?limit=15')).json();
+    const tb = $('jobs');
+    tb.replaceChildren();
+
+    const counts = { queued: 0, processing: 0, completed: 0, failed: 0 };
+
+    if (!jobs.length) {
+      const tr = document.createElement('tr');
+      const td = document.createElement('td');
+      td.colSpan = 7;
+      td.className = 'empty';
+      td.textContent = 'No jobs yet. Submit one above.';
+      tr.appendChild(td);
+      tb.appendChild(tr);
+    }
+
+    for (const j of jobs) {
+      if (j.status in counts) counts[j.status]++;
+      const tr = document.createElement('tr');
+
+      cell(tr, j.job_id.slice(0, 8), 'mono');
+      cell(tr, j.filename);
+      cell(tr, j.operation + ' ' + JSON.stringify(j.parameters), 'muted');
+
+      const st = cell(tr, '');
+      const badge = document.createElement('span');
+      badge.className = 'badge ' + j.status;
+      badge.textContent = j.status;
+      st.appendChild(badge);
+      if (j.error) {
+        const er = document.createElement('span');
+        er.className = 'err-text';
+        er.textContent = j.error;
+        st.appendChild(er);
+      }
+
+      cell(tr, j.worker || '', 'mono muted');
+      cell(tr, j.attempts);
+
+      const td = cell(tr, '');
+      if (j.result_url) {
+        const a = document.createElement('a');
+        a.className = 'dl';
+        a.href = j.result_url;
+        a.textContent = 'Download';
+        td.appendChild(a);
+      }
+      tb.appendChild(tr);
+    }
+
+    $('sQueued').textContent = counts.queued;
+    $('sProcessing').textContent = counts.processing;
+    $('sCompleted').textContent = counts.completed;
+    $('sFailed').textContent = counts.failed;
+  } catch (e) { /* API temporarily unavailable */ }
+}
+setInterval(refresh, 2000);
+refresh();
+</script>
+</body>
+</html>

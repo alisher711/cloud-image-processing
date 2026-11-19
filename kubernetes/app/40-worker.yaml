@@ -1,0 +1,93 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: worker
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: worker
+  template:
+    metadata:
+      labels:
+        app: worker
+    spec:
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: worker
+          image: cip-worker:dev
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8001
+          env:
+            - name: POSTGRES_HOST
+              value: postgres
+            - name: POSTGRES_USER
+              value: imageuser
+            - name: POSTGRES_DB
+              value: images
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: POSTGRES_PASSWORD
+            - name: RABBITMQ_HOST
+              value: rabbitmq
+            - name: RABBITMQ_USER
+              value: imageuser
+            - name: RABBITMQ_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: RABBITMQ_PASSWORD
+            - name: DATA_DIR
+              value: /data
+            - name: PROCESSING_DELAY_SECONDS
+              value: "2"
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: 8001
+            periodSeconds: 3
+            failureThreshold: 40
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8001
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8001
+            periodSeconds: 15
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+          volumeMounts:
+            - name: data
+              mountPath: /data
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: image-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: worker
+spec:
+  clusterIP: None   # headless: lets Prometheus discover every worker Pod
+  selector:
+    app: worker
+  ports:
+    - name: metrics
+      port: 8001
+      targetPort: 8001
