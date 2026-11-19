@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Submit many jobs, wait for them, and print throughput figures. Standard library + Pillow only."""
+"""Submit many jobs, wait for them, and print throughput figures. Standard library + Pillow only"""
 import argparse
 import io
 import json

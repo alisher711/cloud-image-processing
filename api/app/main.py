@@ -1,4 +1,4 @@
-"""FastAPI service: accepts uploads, creates jobs, exposes status and results."""
+"""FastAPI service: accepts uploads, creates jobs, exposes status and results"""
 import json
 import logging
 import os

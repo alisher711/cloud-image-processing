@@ -1,4 +1,4 @@
-"""Image validation and processing with Pillow."""
+"""Image validation and processing with Pillow"""
 import io
 import os
 

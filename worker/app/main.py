@@ -1,4 +1,4 @@
-"""Queue worker: takes a job from RabbitMQ, processes the image, records the result."""
+"""Queue worker: takes a job from RabbitMQ, processes the image, records the result"""
 import json
 import logging
 import os

@@ -1,4 +1,4 @@
-"""File storage on the shared volume. Paths in the DB are relative to DATA_DIR."""
+"""File storage on the shared volume. Paths in the DB are relative to DATA_DIR"""
 import os
 
 from . import config

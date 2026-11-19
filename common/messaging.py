@@ -1,4 +1,4 @@
-"""RabbitMQ helpers (pika)."""
+"""RabbitMQ helpers (pika)"""
 import json
 import time
 
